@@ -1,0 +1,178 @@
+trigger AccountTrigger2 on Account ( before insert, after insert, before update, after update) {
+    
+    //if(Trigger.isInsert && Trigger.isAfter){
+       //List<AccounTeamMember> atm1 = new List<AccountTeamMember>();
+        //User u = [SELECT Name FROM User where Name = '<Shule Demirci>' ];
+       // For(Account a: Trigger.new){
+            //if(a.AnnualRevenue > 500000){
+             //   AccountTeamMember atm = new AccountTeamMember();
+             //   atm.userid = u.id;
+              //  atm.AccountId = a.id;
+              //  atm.TeamMemberRole = 'Lead Qualifier';
+              //  atm.AccountAccessLevel = 'All';
+              //  atm1.add(atm);
+   
+    if(Trigger.isInsert && Trigger.isAfter){
+        user u = [SELECT Name FROM User where Name = '<Shule Demirci>'];
+        List<Task> t1 = new List<task>();
+        for(Account a : Trigger.new){
+            if(a.Type =='Other'){
+                Task t = new Task();
+                t.WhatId = a.id;
+                t.Priority = 'normal';
+                t.Status= 'not started';
+                t.Subject = 'Email';
+                t.OwnerId = u.Id;
+                t1.add(t);
+            }
+        }
+        insert t1; 
+    }
+    if(Trigger.isInsert && Trigger.isAfter){
+     user u = [SELECT Name,email FROM User where Name = 'Shule Demirci' ];
+        List<Task> t1 = new List<Task>();
+         for(Account a : Trigger.new){
+             if(a.Type =='Other'){
+                 Task t = new Task ();
+                 t.WhatId =a.id;
+                 t.Priority = 'normal';
+                 t.Status ='not started';
+                 t.Subject = 'Email';
+                 t.OwnerId = u.Id;
+                 t1.add(t);
+                 Messaging.SingleEmailMessage msg = new Messaging.SingleEmailMessage();
+                 List<String> cc = new List<String>{u.email};
+                 msg.setToAddresses(cc);
+                 string body = 'dear customer';
+                 msg.setPlainTextBody(body);
+                 msg.setSubject('test subject');
+                 Messaging.Email[] emails = new Messaging.Email[]{msg};
+                 Messaging.sendEmail(emails);
+             }
+    }
+    insert t1;
+    }
+    
+    If(Trigger.isAfter && Trigger.isUpdate){
+        
+        Set<Id> accIdsWhichGotBillingAddressChanged = new Set<Id>();
+        
+        for(Account accRecNew : Trigger.New){
+            Account accRecOld = Trigger.OldMap.get(accRecNew.Id);
+            
+            if(accRecNew.BillingStreet != accRecOld.BillingStreet){
+                accIdsWhichGotBillingAddressChanged.add(accRecNew.Id);
+                
+                
+            }
+            
+        }
+        
+        List<Account> accsWithContacts = [SELECT id, name, billingcity, billingstreet, billingstate, billingcountry,(SELECT id, name from Contacts)from Account WHERE ID in :  accIdsWhichGotBillingAddressChanged];
+        List<Contact> contsListToUpdate = new List<Contact>();
+        
+        for (Account acc : accsWithContacts){
+            List<Contact> consOfTheLoopedAccount = acc.contacts;
+            for(Contact con: consOfTheLoopedAccount ){
+                con.mailingstreet = acc.BillingStreet;
+                con.MailingCity = acc.BillingCity;
+                con.MailingState = acc.BillingState;
+                con.MailingCountry = acc.BillingCountry;
+                contsListToUpdate.add(con);
+                
+            }
+        }
+        
+        If(contsListToUpdate.size()>0){
+            UPDATE contsListToUpdate;
+        }
+    }
+    
+    
+    
+    //Scenario 4
+    
+    If(Trigger.isBefore && Trigger.isUpdate){
+        
+        System.debug('New Values ' + Trigger.new);
+         System.debug(Trigger.NewMap);
+        
+        
+       System.debug('Old Values '+ Trigger.Old);
+         System.debug(Trigger.OldMap);  
+        
+        for ( Account accRecNew : Trigger.new){
+            
+            Account accRecOld = Trigger.oldMap.get(accRecNew.Id);
+            
+            if (accRecnew.Name!=accRecOld.Name){
+                
+                accRecNew.addError('Account Name  cannot be modified!');
+            }
+        }
+        
+        
+    }
+    
+    
+    
+    
+    
+    
+    //Scenario 3
+       if(Trigger.isAfter && Trigger.isInsert){
+        
+        
+        List<Contact> conListToInsert = new List<Contact>();//*Bulkification
+        for(Account accRec :  Trigger.new){
+            Contact con = new Contact(); 
+            con.LastName = accRec.Name;
+            con.Accountid = accRec.Id;      //* We need to make this account to be parent of this contact. ID will be created in AfterInsert
+            conListToInsert.add(con);
+            Contact con2 = new Contact(); 
+            con2.LastName = accRec.Name;
+            con2.Accountid = accRec.Id;      //* We need to make this account to be parent of this contact. ID will be created in AfterInsert
+            conListToInsert.add(con2);
+        }
+        
+        if(conListToInsert.size()>0)
+                                        //Whenever there is list, check size
+        INSERT conListToInsert;
+        
+        
+        
+    }
+            
+    
+    If(Trigger.isBefore && Trigger.isInsert){
+        
+       
+        for( Account accRec : Trigger.new){
+            //Scenario 2
+            
+            if(accRec.AnnualRevenue < 1000)
+                accRec.addError('Annual Revenue cannot be less than 1000');
+      
+            
+            //Scenario 1
+            if(accRec.ShippingCity==null)
+              accRec.ShippingCity = accRec.BillingCity;
+            if(accRec.ShippingCountry==null)
+                accRec.ShippingCountry = accRec.BillingCountry;
+            if(accRec.ShippingState== null)
+                accRec.ShippingState = accRec.BillingState;
+            if(accRec.ShippingStreet == null)
+                accRec.ShippingStreet = accRec.BillingStreet;
+             if(accRec.ShippingPostalCode == null)
+                accRec.ShippingPostalCode = accRec.BillingPostalCode;
+            
+            
+            
+        }
+        
+        
+        
+        
+    }
+
+}
